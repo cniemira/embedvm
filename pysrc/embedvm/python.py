@@ -1,10 +1,11 @@
 import ast
-from collections import namedtuple
-from embedvm import asm
-from embedvm.util import joining
-from embedvm import bytecode
 
-deduplicate = lambda iterable: reduce(lambda a, b: a if b in a else a+[b], iterable, [])
+from collections import namedtuple
+
+from embedvm import asm, bytecode
+from embedvm.util import joining
+
+#deduplicate = lambda iterable: reduce(lambda a, b: a if b in a else a+[b], iterable, [])
 
 def raising_int(n):
     if not isinstance(n, int):
@@ -17,7 +18,7 @@ class CodeObject(object):
         raise Exception("Operation not implemented on %s"%cls.__name__)
 
     @classmethod
-    def call(cls, context, args, keywords, starargs, kwargs):
+    def call(cls, context, args, keywords):
         cls._raise()
 
     @classmethod
@@ -85,7 +86,7 @@ class Function(CodeObject):
             raise Exception("Value not supported for default argument")
 
         try:
-            self.args = dict((a.id, Argument(i)) for (i, a) in enumerate(args.args))
+            self.args = dict((a.arg, Argument(i)) for (i, a) in enumerate(args.args))
         except AttributeError:
             raise Exception("Non-simple arguments not supported")
 
@@ -98,11 +99,11 @@ class Function(CodeObject):
     def __repr__(self):
         return "<%s \"%s\", %d instructions>"%(type(self).__name__, self.name, self.code.length)
 
-    def call(self, context, args, keywords, starargs, kwargs):
-        return self.PushableFunctioncall(self, args, keywords, starargs, kwargs)
-    class PushableFunctioncall(CodeObject, namedtuple("PushableFunctionData", "function args keywords starargs kwargs")):
+    def call(self, context, args, keywords):
+        return self.PushableFunctioncall(self, args, keywords)
+    class PushableFunctioncall(CodeObject, namedtuple("PushableFunctionData", "function args keywords")):
         def push_value(self, context):
-            if self.starargs or self.keywords or self.kwargs:
+            if self.keywords:
                 raise Exception("Only positional arguments are supported.")
             if len(self.args) + len(self.function.defaults) < len(self.function.args):
                 raise Exception("Insufficient number of arguments")
@@ -147,7 +148,7 @@ class Function(CodeObject):
             return leftside.getattr(self, e.attr)
         elif isinstance(e, ast.Call):
             func = self._resolve(e.func)
-            return func.call(self, e.args, e.keywords, e.starargs, e.kwargs)
+            return func.call(self, e.args, e.keywords)
         elif isinstance(e, ast.Subscript):
             value = self._resolve(e.value)
             return value.getslice(self, e.slice)
@@ -235,7 +236,7 @@ class Function(CodeObject):
         # TBD: empty ranges behave different than in python? (1, -1, 1)
         if not isinstance(s, ast.Call) or not isinstance(s.func, ast.Name) or s.func.id not in ('range', 'xrange'):
             raise Exception("For loops only supported with range iterators")
-        if s.starargs or s.keywords or s.kwargs or len(s.args) not in range(1, 4):
+        if s.keywords or len(s.args) not in range(1, 4):
             raise Exception("(x)range only supported with 1-3 positional arguments")
         if len(s.args) == 1:
             start, stop, step = ast.Num(n=0), s.args[0], ast.Num(n=1)
@@ -376,7 +377,8 @@ class Function(CodeObject):
         local_names = []
         for statement in self.body:
             local_names.extend(self._gather_locals_from_statement(statement))
-        self.locals = dict((name, LocalVariable(i)) for (i, name) in enumerate(deduplicate(local_names)))
+        #self.locals = dict((name, LocalVariable(i)) for (i, name) in enumerate(deduplicate(local_names)))
+        self.locals = dict((name, LocalVariable(i)) for (i, name) in enumerate(set(local_names)))
 
         if self.locals:
             self.code.append(bytecode.PushZeros(len(self.locals)-1))
@@ -405,7 +407,7 @@ class PythonProgram(asm.ASM):
             return leftside.getattr(self, e.attr)
         elif isinstance(e, ast.Call):
             func = self._resolve(e.func)
-            return func.call(self, e.args, e.keywords, e.starargs, e.kwargs)
+            return func.call(self, e.args, e.keywords)
         else:
             raise Exception("Can not resolve %r to a CodeObject"%e)
 

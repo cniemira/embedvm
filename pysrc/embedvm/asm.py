@@ -1,6 +1,7 @@
 import ast
-from . import bytecode
-from util import flipped, joining, adding
+
+from embedvm import bytecode
+from embedvm.util import flipped, joining, adding
 
 class UnresolvedReference(object):
     def __init__(self, id):
@@ -208,7 +209,7 @@ class ASM(object):
                 pos += datablock.length
 
             else: # it's a call -- this is code.
-                assert value.kwargs is None and value.starargs is None
+                #assert value.kwargs is None and value.starargs is None
 
                 commandclass = getattr(bytecode, value.func.id)
                 assert issubclass(commandclass, bytecode.ByteCodeCommand)

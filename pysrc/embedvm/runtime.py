@@ -1,10 +1,13 @@
-from .bytecode import signext, assert_signexted
-from . import bytecode
-from .python import CodeObject, raising_int, UnboundSetter
-from .asm import DataBlock
-from collections import namedtuple
 import ast
+
+from collections import namedtuple
 from math import ceil
+
+from embedvm import bytecode
+from embedvm.bytecode import signext, assert_signexted
+from embedvm.python import CodeObject, raising_int, UnboundSetter
+from embedvm.asm import DataBlock
+
 
 class Importable(CodeObject):
     """All objects that are supposed to be imported into a EVM Python program
@@ -36,12 +39,12 @@ class _UserfuncWrapper(Importable):
     def __call__(self, *args, **kwargs):
         return self.__func(*args, **kwargs)
 
-    def call(self, context, args, keywords, starargs, kwargs):
-        return self.PushableUserfunc(self.__which, args, keywords, starargs, kwargs)
+    def call(self, context, args, keywords):
+        return self.PushableUserfunc(self.__which, args, keywords)
 
-    class PushableUserfunc(Importable, namedtuple("PushableData", "which args keywords starargs kwargs")):
+    class PushableUserfunc(Importable, namedtuple("PushableData", "which args keywords")):
         def push_value(self, context):
-            if self.keywords or self.starargs or self.kwargs:
+            if self.keywords:
                 raise Exception("Can not call wrapped user function with non-positional arguments.")
             argv = self.args
 
@@ -70,8 +73,8 @@ class _C_Division(Importable):
             return -((-a)/b)
         else:
             return a / b
-    def call(self, context, args, keywords, starargs, kwargs):
-        if keywords or starargs or kwargs or len(args) != 2:
+    def call(self, context, args, keywords):
+        if keywords or len(args) != 2:
             raise Exception("c_division requires exactly two arguments.")
         return self.Pushable(args)
     class Pushable(Importable):
@@ -210,7 +213,7 @@ class Globals(list):
         else:
             assert isinstance(self, cls)
             ret = cls.GlobalCodeObject()
-            for name, view in sorted(self.__dict__['_known_view'].items(), key=lambda (k, v): v.address):
+            for name, view in sorted(self.__dict__['_known_view'].items(), key=lambda k, v: v.address):
                 viewtype = getattr(ret, type(view).__name__) # luckily they use the same names
                 accessor = viewtype(ret).call(None, [ast.Num(n=view.address)], [ast.keyword('length', ast.Num(n=view.length))] if hasattr(view, 'length') else [], None, None)
                 ret.getattr(None, name).global_assign(accessor)
@@ -229,8 +232,8 @@ class Globals(list):
         length = property(lambda self: self.pos)
 
         @classmethod
-        def call(cls, context, args, keywords, starargs, kwargs):
-            if args or keywords or starargs or kwargs:
+        def call(cls, context, args, keywords):
+            if args or keywords:
                 raise Exception("Global object can't take any arguments")
             gco = cls()
             context.blocks.append(gco)
@@ -262,9 +265,7 @@ class Globals(list):
             def __init__(self, gv):
                 self.gv = gv
 
-            def call(self, context, args, keywords, starargs, kwargs):
-                if starargs or kwargs:
-                    raise Exception("Can't handle those arguments")
+            def call(self, context, args, keywords):
                 if len(args) not in (0, 1) or len(args) == 1 and not isinstance(args[0], ast.Num):
                     raise Exception("Can't handle those arguments")
                 if args:

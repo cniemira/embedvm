@@ -1,6 +1,6 @@
 import copy
 
-from util import signext, assert_signexted
+from embedvm.util import signext, assert_signexted
 
 class UnknownCommand(Exception):
     """A byte sequence was attempted to parse that has no byte code command associated"""
@@ -175,7 +175,7 @@ class PushU8(PushData):
         self.value = data[offset+1]
 
     def _check(self):
-        assert self.value in xrange(256)
+        assert self.value in range(256)
 
     def to_bin(self):
         self._check()
@@ -340,7 +340,7 @@ class CallUserFunction(ByteCodeCommand):
         self.funcid = data[offset] & 0x0f
 
     def _check(self):
-        assert self.funcid in xrange(16)
+        assert self.funcid in range(16)
 
     def to_bin(self):
         self._check()
@@ -375,9 +375,9 @@ class GlobalAccess(ByteCodeCommand):
             assert self.address == None
             assert self.popoffset
         elif self.nargs == 1:
-            assert self.address in xrange(1<<8)
+            assert self.address in range(1<<8)
         elif self.nargs == 2:
-            assert self.address in xrange(1<<16)
+            assert self.address in range(1<<16)
 
     @classmethod
     def check_match(cls, command):
@@ -414,11 +414,11 @@ class StackAccess(ByteCodeCommand):
         self.k = (data[offset] & 0x38) >> 3
 
     def _check(self):
-        assert self.k in xrange(6)
+        assert self.k in range(6)
 
     @classmethod
     def check_match(cls, command):
-        return super(StackAccess, cls).check_match(command) and command & 0x7 in (5, 6) and ((command & 0x38) >> 3) in xrange(6)
+        return super(StackAccess, cls).check_match(command) and command & 0x7 in (5, 6) and ((command & 0x38) >> 3) in range(6)
 
     def to_bin(self):
         self._check()
@@ -504,10 +504,10 @@ def test():
         try:
             command = interpret(commandbuffer, 0)
         except UnknownCommand:
-            print "Command %02x is unknown"%c
+            print("Command %02x is unknown"%c)
             continue
         r = repr(command)
-        print r
+        print(r)
         assert repr(eval(r)) == r
         b = command.to_bin()
         assert repr(interpret(b, 0)) == r

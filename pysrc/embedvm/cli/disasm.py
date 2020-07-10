@@ -29,9 +29,10 @@ def main():
             symfile = basename + '.sym'
 
     a = asm.ASM()
-    data = map(ord, open(binfile).read())
-    entrypoints = [int(addr, 16) for (addr, name, type) in map(str.split, open(symfile)) if type.strip() in ('(code)', '(other)') and name != '_end']
-    a.read_binary(data, entrypoints)
+    bin_data = list(open(binfile, 'rb').read())
+    sym_lines = map(str.split, open(symfile))
+    entrypoints = [int(addr, 16) for (addr, name, type_) in sym_lines if type_.strip() in ('(code)', '(other)') and name != '_end']
+    a.read_binary(bin_data, entrypoints)
     if not opts.keep_fixed:
         a.unfix_all()
     converted = a.to_asm()
